@@ -745,7 +745,8 @@ class Instance(TaggedEC2Resource, BotoInstance):
                                                                     nic.get(
                                                                         'PrivateIpAddress'),
                                                                     device_index=device_index,
-                                                                    public_ip_auto_assign=False,
+                                                                    public_ip_auto_assign=nic.get(
+                                                                        'AssociatePublicIpAddress', False),
                                                                     group_ids=group_ids,
                                                                     vm_id=self.id)
 
@@ -3424,7 +3425,7 @@ class SpotFleetBackend(object):
         return self.spot_fleet_requests[spot_fleet_request_id]
 
     def describe_spot_fleet_instances(self, spot_fleet_request_id):
-        nspot_fleet = self.get_spot_fleet_request(spot_fleet_request_id)
+        spot_fleet = self.get_spot_fleet_request(spot_fleet_request_id)
         return spot_fleet.spot_requests
 
     def describe_spot_fleet_requests(self, spot_fleet_request_ids):
