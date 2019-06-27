@@ -8,6 +8,9 @@ import os
 import re
 import six
 import warnings
+import subprocess
+import sys
+from time import sleep
 from pkg_resources import resource_filename
 
 import boto.ec2
@@ -200,7 +203,7 @@ class TaggedEC2Resource(BaseModel):
 
 class NetworkInterface(TaggedEC2Resource):
     def __init__(self, ec2_backend, subnet, private_ip_address, device_index=0,
-                 public_ip_auto_assign=True, group_ids=None):
+                 public_ip_auto_assign=True, group_ids=None, vm_id=None):
         self.ec2_backend = ec2_backend
         self.id = random_eni_id()
         self.device_index = device_index
@@ -209,7 +212,8 @@ class NetworkInterface(TaggedEC2Resource):
         self.instance = None
         self.attachment_id = None
 
-        self.public_ip = None
+        self.vm_id = vm_id
+        self._public_ip = None
         self.public_ip_auto_assign = public_ip_auto_assign
         self.start()
 
@@ -230,6 +234,13 @@ class NetworkInterface(TaggedEC2Resource):
                     self.ec2_backend.groups[subnet.vpc_id][group_id] = group
                 if group:
                     self._group_set.append(group)
+    @property
+    def public_ip(self):
+        if self.vm_id is None:
+            return self._public_ip
+
+        return get_vm_public_ip(self.vm_id)
+
 
     @classmethod
     def create_from_cloudformation_json(cls, resource_name, cloudformation_json, region_name):
@@ -307,9 +318,9 @@ class NetworkInterfaceBackend(object):
         self.enis = {}
         super(NetworkInterfaceBackend, self).__init__()
 
-    def create_network_interface(self, subnet, private_ip_address, group_ids=None, **kwargs):
+    def create_network_interface(self, subnet, private_ip_address, group_ids=None, vm_id=None, **kwargs):
         eni = NetworkInterface(
-            self, subnet, private_ip_address, group_ids=group_ids, **kwargs)
+            self, subnet, private_ip_address, group_ids=group_ids, vm_id=vm_id, **kwargs)
         self.enis[eni.id] = eni
         return eni
 
@@ -382,6 +393,23 @@ class NetworkInterfaceBackend(object):
         return generic_filter(filters, enis)
 
 
+def get_vm_public_ip(vm_id):
+            return subprocess.run( \
+                    'vboxmanage guestproperty get instance_{} ' \
+                    '"/VirtualBox/GuestInfo/Net/0/V4/IP" | cut -d \' \' -f 2' \
+                    .format(vm_id), shell=True, stdout=subprocess.PIPE) \
+                    .stdout.decode().strip()
+
+
+def wait_until_running(vm_id):
+        while True:
+            # TODO(vkasljevic): Make this more robust
+            if os.system("ping -c 1 " + get_vm_public_ip(vm_id) + "> /dev/null 2>&1") == 0:
+                break
+
+            sleep(0.2)
+
+
 class Instance(TaggedEC2Resource, BotoInstance):
     def __init__(self, ec2_backend, image_id, user_data, security_groups, **kwargs):
         super(Instance, self).__init__()
@@ -407,6 +435,17 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self.disable_api_termination = kwargs.get("disable_api_termination", False)
         self._spot_fleet_id = kwargs.get("spot_fleet_id", None)
         associate_public_ip = kwargs.get("associate_public_ip", False)
+
+        # Create VM instance
+        subprocess.run("vboxmanage clonevm --name instance_{} --register base"
+                       .format(self.id), shell=True)
+
+        subprocess.run("vboxmanage startvm instance_{} --type headless"
+                       .format(self.id), shell=True)
+
+        # We wait until instance is fully booted and has public ip
+        wait_until_running(self.id)
+
         if in_ec2_classic:
             # If we are in EC2-Classic, autoassign a public IP
             associate_public_ip = True
@@ -456,6 +495,13 @@ class Instance(TaggedEC2Resource, BotoInstance):
             private_ip=kwargs.get("private_ip"),
             associate_public_ip=associate_public_ip
         )
+
+    def release_resources(self):
+        if self._state.name == 'running':
+            self.terminate()
+
+        subprocess.run("vboxmanage unregistervm instance_{} --delete"
+                       .format(self.id), shell=True)
 
     def __del__(self):
         try:
@@ -561,6 +607,13 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._reason = ""
         self._state_reason = StateReason()
 
+        # Resume VM instance
+        subprocess.run("vboxmanage controlvm instance_{} resume"
+                       .format(self.id), shell=True)
+
+        # We wait until instance is running and has public ip
+        wait_until_running(self.id)
+
     def stop(self, *args, **kwargs):
         for nic in self.nics.values():
             nic.stop()
@@ -573,8 +626,15 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._state_reason = StateReason("Client.UserInitiatedShutdown: User initiated shutdown",
                                          "Client.UserInitiatedShutdown")
 
+        # Pause VM instance
+        subprocess.run("vboxmanage controlvm instance_{} pause"
+                       .format(self.id), shell=True)
+
     def delete(self, region):
         self.terminate()
+        # Delete VM instance
+        subprocess.run("vboxmanage unregistervm instance_{} --delete"
+                       .format(self.id), shell=True)
 
     def terminate(self, *args, **kwargs):
         for nic in self.nics.values():
@@ -598,12 +658,26 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._state_reason = StateReason("Client.UserInitiatedShutdown: User initiated shutdown",
                                          "Client.UserInitiatedShutdown")
 
+        # Stop VM instance
+        subprocess.run("vboxmanage controlvm instance_{} poweroff"
+                       .format(self.id), shell=True)
+
     def reboot(self, *args, **kwargs):
         self._state.name = "running"
         self._state.code = 16
 
         self._reason = ""
         self._state_reason = StateReason()
+
+        # Stop VM instance
+        subprocess.run("vboxmanage controlvm instance_{} poweroff"
+                       .format(self.id), shell=True)
+        # Start VM instance
+        subprocess.run("vboxmanage startvm instance_{} --type headless"
+                       .format(self.id), shell=True)
+
+        # We wait until instance is running and has public ip
+        wait_until_running(self.id)
 
     @property
     def dynamic_group_list(self):
@@ -671,11 +745,12 @@ class Instance(TaggedEC2Resource, BotoInstance):
                                                                     nic.get(
                                                                         'PrivateIpAddress'),
                                                                     device_index=device_index,
-                                                                    public_ip_auto_assign=nic.get(
-                                                                        'AssociatePublicIpAddress', False),
-                                                                    group_ids=group_ids)
+                                                                    public_ip_auto_assign=False,
+                                                                    group_ids=group_ids,
+                                                                    vm_id=self.id)
 
             self.attach_eni(use_nic, device_index)
+
 
     def attach_eni(self, eni, device_index):
         device_index = int(device_index)
@@ -719,6 +794,11 @@ class InstanceBackend(object):
             if instance.id == instance_id:
                 return instance
         raise InvalidInstanceIdError(instance_id)
+
+    def release_resources(self):
+        for r in self.reservations.values():
+            for i in r.instances:
+                i.release_resources()
 
     def add_instances(self, image_id, count, user_data, security_group_names,
                       **kwargs):
@@ -3344,7 +3424,7 @@ class SpotFleetBackend(object):
         return self.spot_fleet_requests[spot_fleet_request_id]
 
     def describe_spot_fleet_instances(self, spot_fleet_request_id):
-        spot_fleet = self.get_spot_fleet_request(spot_fleet_request_id)
+        nspot_fleet = self.get_spot_fleet_request(spot_fleet_request_id)
         return spot_fleet.spot_requests
 
     def describe_spot_fleet_requests(self, spot_fleet_request_ids):

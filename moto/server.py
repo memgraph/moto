@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import sys
+import signal
 from threading import Lock
 
 import six
@@ -227,5 +228,15 @@ def main(argv=sys.argv[1:]):
                ssl_context=ssl_context)
 
 
+def exit_gracefully(signum, frame):
+    for ec2_backend in BACKENDS['ec2'].values():
+        ec2_backend.release_resources()
+
+    sys.exit(0)
+
+
+# Set the signal handler and a 5-second alarm
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, exit_gracefully)
+    signal.signal(signal.SIGTERM, exit_gracefully)
     main()
