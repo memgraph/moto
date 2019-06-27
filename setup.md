@@ -7,8 +7,11 @@
 
 3) Install Virtualbox and make sure it works
 
-4) Goto `vms` directory and run `init_base.sh`
+4) Go to `vm_scripts` directory and run `init_base.sh`
 
-5) Start base image and make sure you can ssh into that instance
-   Use `get_ip.sh` and then `ssh ec2-user@<ip>`
-   Password is `password`
+5) Create new instance with `create_instance.sh <name>`
+   Start instance with `start_instance.sh <name>`
+   Get instance ip with `get_ip.sh <name>`
+   Connect with `ssh ec2-user@<ip>` (password is `password`)
+   Stop instance with `stop_instance.sh <name>`
+   Delete instance with `delete_instance.sh <name>`
