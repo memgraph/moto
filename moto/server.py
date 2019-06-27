@@ -235,7 +235,6 @@ def exit_gracefully(signum, frame):
     sys.exit(0)
 
 
-# Set the signal handler and a 5-second alarm
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, exit_gracefully)
     signal.signal(signal.SIGTERM, exit_gracefully)
