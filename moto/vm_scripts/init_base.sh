@@ -14,8 +14,6 @@ vboxmanage dhcpserver modify --ifname $net --enable
 # Create base virtualbox intance
 vboxmanage createvm --name base --ostype Linux_64 --register
 vboxmanage modifyvm base --memory 512 --vram 16
-# This is set in order to avoid network interface issuse on first boot
-vboxmanage modifyvm base --macaddress1 080027717C77
 vboxmanage modifyvm base --graphicscontroller vmsvga
 vboxmanage modifyvm base --hostonlyadapter1 $net --nic1 hostonly
 vboxmanage storagectl base --name "IDE Controller" --add ide
