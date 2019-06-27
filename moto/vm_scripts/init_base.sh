@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Download base.vdi
-curl http://deps.memgraph.io/base.zip > base.zip
+# Imange must have Virtualbox guest additions
+curl $1 > base.zip
 unzip base.zip
 rm base.zip
 
