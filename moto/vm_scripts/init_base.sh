@@ -4,6 +4,16 @@
 #   Base image must have Virtualbox guest additions
 # Arg 2 - Network interface to use for virtualbox instances
 
+if [ -z "$1" ]; then
+      echo "Url to base image missing"
+      exit 1
+fi
+
+if [ -z "$2" ]; then
+    echo "Network interface missing"
+    exit 1
+fi
+
 # Download base.vdi
 curl $1 > base.zip
 unzip base.zip
