@@ -136,7 +136,7 @@ from .utils import (
     rsa_public_key_fingerprint
 )
 
-import settings
+from moto import settings
 
 INSTANCE_TYPES = json.load(
     open(resource_filename(__name__, 'resources/instance_types.json'), 'r')

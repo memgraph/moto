@@ -17,7 +17,7 @@ from werkzeug.serving import run_simple
 
 from moto.backends import BACKENDS
 from moto.core.utils import convert_flask_to_httpretty_response
-import settings
+from moto import settings
 
 
 HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "HEAD", "PATCH"]
