@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import sys
+import signal
 from threading import Lock
 
 import six
@@ -16,6 +17,7 @@ from werkzeug.serving import run_simple
 
 from moto.backends import BACKENDS
 from moto.core.utils import convert_flask_to_httpretty_response
+from moto import settings
 
 
 HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "HEAD", "PATCH"]
@@ -209,7 +211,14 @@ def main(argv=sys.argv[1:]):
         help='Path to SSL private key',
         default=None)
 
+    parser.add_argument('--run-as-vm', action='store_true',
+            help='Run instance in virtualbox instead of mocking',
+            default=False)
+
     args = parser.parse_args(argv)
+
+    # Set global flag
+    settings.RUN_AS_VM = args.run_as_vm
 
     # Wrap the main application
     main_app = DomainDispatcherApplication(
@@ -227,5 +236,14 @@ def main(argv=sys.argv[1:]):
                ssl_context=ssl_context)
 
 
+def exit_gracefully(signum, frame):
+    for ec2_backend in BACKENDS['ec2'].values():
+        ec2_backend.release_resources()
+
+    sys.exit(0)
+
+
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, exit_gracefully)
+    signal.signal(signal.SIGTERM, exit_gracefully)
     main()
