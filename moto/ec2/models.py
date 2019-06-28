@@ -136,6 +136,8 @@ from .utils import (
     rsa_public_key_fingerprint
 )
 
+import settings
+
 INSTANCE_TYPES = json.load(
     open(resource_filename(__name__, 'resources/instance_types.json'), 'r')
 )
@@ -241,6 +243,10 @@ class NetworkInterface(TaggedEC2Resource):
 
         return get_vm_public_ip(self.vm_id)
 
+    @public_ip.setter
+    def public_ip(self, ip):
+        if self.vm_id is None:
+            self._public_ip = ip
 
     @classmethod
     def create_from_cloudformation_json(cls, resource_name, cloudformation_json, region_name):
@@ -436,15 +442,16 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._spot_fleet_id = kwargs.get("spot_fleet_id", None)
         associate_public_ip = kwargs.get("associate_public_ip", False)
 
-        # Create VM instance
-        subprocess.run("vboxmanage clonevm --name instance_{} --register base"
-                       .format(self.id), shell=True)
+        if settings.RUN_AS_VM:
+            # Create VM instance
+            subprocess.run("vboxmanage clonevm --name instance_{} --register base"
+                           .format(self.id), shell=True)
 
-        subprocess.run("vboxmanage startvm instance_{} --type headless"
-                       .format(self.id), shell=True)
+            subprocess.run("vboxmanage startvm instance_{} --type headless"
+                           .format(self.id), shell=True)
 
-        # We wait until instance is fully booted and has public ip
-        wait_until_running(self.id)
+            # We wait until instance is fully booted and has public ip
+            wait_until_running(self.id)
 
         if in_ec2_classic:
             # If we are in EC2-Classic, autoassign a public IP
@@ -500,8 +507,9 @@ class Instance(TaggedEC2Resource, BotoInstance):
         if self._state.name == 'running':
             self.terminate()
 
-        subprocess.run("vboxmanage unregistervm instance_{} --delete"
-                       .format(self.id), shell=True)
+        if settings.RUN_AS_VM:
+            subprocess.run("vboxmanage unregistervm instance_{} --delete"
+                           .format(self.id), shell=True)
 
     def __del__(self):
         try:
@@ -607,12 +615,13 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._reason = ""
         self._state_reason = StateReason()
 
-        # Resume VM instance
-        subprocess.run("vboxmanage controlvm instance_{} resume"
-                       .format(self.id), shell=True)
+        if settings.RUN_AS_VM:
+            # Resume VM instance
+            subprocess.run("vboxmanage controlvm instance_{} resume"
+                           .format(self.id), shell=True)
 
-        # We wait until instance is running and has public ip
-        wait_until_running(self.id)
+            # We wait until instance is running and has public ip
+            wait_until_running(self.id)
 
     def stop(self, *args, **kwargs):
         for nic in self.nics.values():
@@ -626,15 +635,17 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._state_reason = StateReason("Client.UserInitiatedShutdown: User initiated shutdown",
                                          "Client.UserInitiatedShutdown")
 
-        # Pause VM instance
-        subprocess.run("vboxmanage controlvm instance_{} pause"
-                       .format(self.id), shell=True)
+        if settings.RUN_AS_VM:
+            # Pause VM instance
+            subprocess.run("vboxmanage controlvm instance_{} pause"
+                           .format(self.id), shell=True)
 
     def delete(self, region):
         self.terminate()
-        # Delete VM instance
-        subprocess.run("vboxmanage unregistervm instance_{} --delete"
-                       .format(self.id), shell=True)
+        if settings.RUN_AS_VM:
+            # Delete VM instance
+            subprocess.run("vboxmanage unregistervm instance_{} --delete"
+                           .format(self.id), shell=True)
 
     def terminate(self, *args, **kwargs):
         for nic in self.nics.values():
@@ -658,9 +669,10 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._state_reason = StateReason("Client.UserInitiatedShutdown: User initiated shutdown",
                                          "Client.UserInitiatedShutdown")
 
-        # Stop VM instance
-        subprocess.run("vboxmanage controlvm instance_{} poweroff"
-                       .format(self.id), shell=True)
+        if settings.RUN_AS_VM:
+            # Stop VM instance
+            subprocess.run("vboxmanage controlvm instance_{} poweroff"
+                           .format(self.id), shell=True)
 
     def reboot(self, *args, **kwargs):
         self._state.name = "running"
@@ -669,15 +681,16 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._reason = ""
         self._state_reason = StateReason()
 
-        # Stop VM instance
-        subprocess.run("vboxmanage controlvm instance_{} poweroff"
-                       .format(self.id), shell=True)
-        # Start VM instance
-        subprocess.run("vboxmanage startvm instance_{} --type headless"
-                       .format(self.id), shell=True)
+        if settings.RUN_AS_VM:
+            # Stop VM instance
+            subprocess.run("vboxmanage controlvm instance_{} poweroff"
+                           .format(self.id), shell=True)
+            # Start VM instance
+            subprocess.run("vboxmanage startvm instance_{} --type headless"
+                           .format(self.id), shell=True)
 
-        # We wait until instance is running and has public ip
-        wait_until_running(self.id)
+            # We wait until instance is running and has public ip
+            wait_until_running(self.id)
 
     @property
     def dynamic_group_list(self):
@@ -741,6 +754,10 @@ class Instance(TaggedEC2Resource, BotoInstance):
                 group_id = nic.get('SecurityGroupId')
                 group_ids = [group_id] if group_id else []
 
+                vm_id = None
+                if settings.RUN_AS_VM:
+                   vm_id = self.id
+
                 use_nic = self.ec2_backend.create_network_interface(subnet,
                                                                     nic.get(
                                                                         'PrivateIpAddress'),
@@ -748,7 +765,7 @@ class Instance(TaggedEC2Resource, BotoInstance):
                                                                     public_ip_auto_assign=nic.get(
                                                                         'AssociatePublicIpAddress', False),
                                                                     group_ids=group_ids,
-                                                                    vm_id=self.id)
+                                                                    vm_id=vm_id)
 
             self.attach_eni(use_nic, device_index)
 

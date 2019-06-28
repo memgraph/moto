@@ -17,6 +17,7 @@ from werkzeug.serving import run_simple
 
 from moto.backends import BACKENDS
 from moto.core.utils import convert_flask_to_httpretty_response
+import settings
 
 
 HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "HEAD", "PATCH"]
@@ -210,7 +211,14 @@ def main(argv=sys.argv[1:]):
         help='Path to SSL private key',
         default=None)
 
+    parser.add_argument('--run-as-vm', action='store_true',
+            help='Run instance in virtualbox instead of mocking',
+            default=False)
+
     args = parser.parse_args(argv)
+
+    # Set global flag
+    settings.RUN_AS_VM = args.run_as_vm
 
     # Wrap the main application
     main_app = DomainDispatcherApplication(
