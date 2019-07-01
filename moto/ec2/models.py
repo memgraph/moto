@@ -615,8 +615,8 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._state_reason = StateReason()
 
         if settings.RUN_AS_VM:
-            # Resume VM instance
-            subprocess.run("bash {}/resume_instance.sh instance_{}"
+            # Start VM instance
+            subprocess.run("bash {}/start_instance.sh instance_{}"
                            .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
             # We wait until instance is running and has public ip
@@ -635,8 +635,8 @@ class Instance(TaggedEC2Resource, BotoInstance):
                                          "Client.UserInitiatedShutdown")
 
         if settings.RUN_AS_VM:
-            # Pause VM instance
-            subprocess.run("bash {}/pause_instance.sh instance_{}"
+            # Stop VM instance
+            subprocess.run("bash {}/stop_instance.sh instance_{}"
                            .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
     def delete(self, region):
