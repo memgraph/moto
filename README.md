@@ -322,6 +322,6 @@ $ moto_server ec2 --run-as-vm
 1) Create new virtual environment and activate it.
 2) Install moto development dependencies
    `pip install -r requirements-dev.txt`.
-3) Install Virtualbox and make sure it works.
+3) Install VirtualBox and make sure it works.
 4) Go to `vm_scripts` directory and run `init_base.sh` to setup base 
    VirtualBox image.

@@ -439,7 +439,8 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._spot_fleet_id = kwargs.get("spot_fleet_id", None)
         associate_public_ip = kwargs.get("associate_public_ip", False)
 
-        # TODO(vkasljevic): Catch all errors in constructo so I can clean up vboxinstances
+        # TODO(vkasljevic): Catch all errors in constructor so I can clean up
+        # VirtualBox instances
 
         if settings.RUN_AS_VM:
             # Create VM instance
