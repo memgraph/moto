@@ -400,20 +400,17 @@ class NetworkInterfaceBackend(object):
 
 
 def get_vm_public_ip(vm_id):
-            return subprocess.run( \
-                    'vboxmanage guestproperty get instance_{} ' \
-                    '"/VirtualBox/GuestInfo/Net/0/V4/IP" | cut -d \' \' -f 2' \
-                    .format(vm_id), shell=True, stdout=subprocess.PIPE) \
-                    .stdout.decode().strip()
+    return subprocess.run( \
+        'bash {}/get_ip.sh instance_{}' \
+        .format(settings.VM_SCRIPT_DIR, vm_id), shell=True, \
+                stdout=subprocess.PIPE) \
+        .stdout.decode().strip()
 
 
 def wait_until_running(vm_id):
-        while True:
-            # TODO(vkasljevic): Make this more robust
-            if os.system("ping -c 1 " + get_vm_public_ip(vm_id) + "> /dev/null 2>&1") == 0:
-                break
-
-            sleep(0.2)
+    subprocess.run( \
+        'bash {}/wait_for_boot.sh instance_{}' \
+        .format(settings.VM_SCRIPT_DIR, vm_id), shell=True)
 
 
 class Instance(TaggedEC2Resource, BotoInstance):
@@ -442,13 +439,15 @@ class Instance(TaggedEC2Resource, BotoInstance):
         self._spot_fleet_id = kwargs.get("spot_fleet_id", None)
         associate_public_ip = kwargs.get("associate_public_ip", False)
 
+        # TODO(vkasljevic): Catch all errors in constructo so I can clean up vboxinstances
+
         if settings.RUN_AS_VM:
             # Create VM instance
-            subprocess.run("vboxmanage clonevm --name instance_{} --register base"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/create_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
-            subprocess.run("vboxmanage startvm instance_{} --type headless"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/start_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
             # We wait until instance is fully booted and has public ip
             wait_until_running(self.id)
@@ -508,8 +507,8 @@ class Instance(TaggedEC2Resource, BotoInstance):
             self.terminate()
 
         if settings.RUN_AS_VM:
-            subprocess.run("vboxmanage unregistervm instance_{} --delete"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/delete_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
     def __del__(self):
         try:
@@ -617,8 +616,8 @@ class Instance(TaggedEC2Resource, BotoInstance):
 
         if settings.RUN_AS_VM:
             # Resume VM instance
-            subprocess.run("vboxmanage controlvm instance_{} resume"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/resume_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
             # We wait until instance is running and has public ip
             wait_until_running(self.id)
@@ -637,15 +636,15 @@ class Instance(TaggedEC2Resource, BotoInstance):
 
         if settings.RUN_AS_VM:
             # Pause VM instance
-            subprocess.run("vboxmanage controlvm instance_{} pause"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/pause_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
     def delete(self, region):
         self.terminate()
         if settings.RUN_AS_VM:
             # Delete VM instance
-            subprocess.run("vboxmanage unregistervm instance_{} --delete"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/delete_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
     def terminate(self, *args, **kwargs):
         for nic in self.nics.values():
@@ -671,8 +670,8 @@ class Instance(TaggedEC2Resource, BotoInstance):
 
         if settings.RUN_AS_VM:
             # Stop VM instance
-            subprocess.run("vboxmanage controlvm instance_{} poweroff"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/stop_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
     def reboot(self, *args, **kwargs):
         self._state.name = "running"
@@ -683,11 +682,11 @@ class Instance(TaggedEC2Resource, BotoInstance):
 
         if settings.RUN_AS_VM:
             # Stop VM instance
-            subprocess.run("vboxmanage controlvm instance_{} poweroff"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/stop_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
             # Start VM instance
-            subprocess.run("vboxmanage startvm instance_{} --type headless"
-                           .format(self.id), shell=True)
+            subprocess.run("bash {}/start_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
             # We wait until instance is running and has public ip
             wait_until_running(self.id)
