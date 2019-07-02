@@ -1,2 +1,7 @@
 #!/bin/bash
-vboxmanage controlvm $1 resume
+if [ -z $1 ]; then
+    echo "Missing instance name"
+    exit 1
+fi
+
+vboxmanage controlvm $1 resume > /dev/null 2>&1
