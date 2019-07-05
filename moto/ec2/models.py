@@ -642,10 +642,6 @@ class Instance(TaggedEC2Resource, BotoInstance):
 
     def delete(self, region):
         self.terminate()
-        if settings.RUN_AS_VM:
-            # Delete VM instance
-            subprocess.run("bash {}/delete_instance.sh instance_{}"
-                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
     def terminate(self, *args, **kwargs):
         for nic in self.nics.values():
@@ -672,6 +668,10 @@ class Instance(TaggedEC2Resource, BotoInstance):
         if settings.RUN_AS_VM:
             # Stop VM instance
             subprocess.run("bash {}/stop_instance.sh instance_{}"
+                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
+
+            # Delete VM instance
+            subprocess.run("bash {}/delete_instance.sh instance_{}"
                            .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
 
     def reboot(self, *args, **kwargs):
