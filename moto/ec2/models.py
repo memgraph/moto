@@ -806,8 +806,9 @@ class InstanceBackend(object):
         raise InvalidInstanceIdError(instance_id)
 
     def release_resources(self):
-        subprocess.run('bash {}/clear_all.sh' \
-            .format(settings.VM_SCRIPT_DIR), shell=True)
+        if settings.RUN_AS_VM:
+            subprocess.run('bash {}/clear_all.sh' \
+                .format(settings.VM_SCRIPT_DIR), shell=True)
 
     def add_instances(self, image_id, count, user_data, security_group_names,
                       **kwargs):
