@@ -503,14 +503,6 @@ class Instance(TaggedEC2Resource, BotoInstance):
             associate_public_ip=associate_public_ip
         )
 
-    def release_resources(self):
-        if self._state.name == 'running':
-            self.terminate()
-
-        if settings.RUN_AS_VM:
-            subprocess.run("bash {}/delete_instance.sh instance_{}"
-                           .format(settings.VM_SCRIPT_DIR, self.id), shell=True)
-
     def __del__(self):
         try:
             subnet = self.ec2_backend.get_subnet(self.subnet_id)
@@ -814,9 +806,9 @@ class InstanceBackend(object):
         raise InvalidInstanceIdError(instance_id)
 
     def release_resources(self):
-        for r in self.reservations.values():
-            for i in r.instances:
-                i.release_resources()
+        if settings.RUN_AS_VM:
+            subprocess.run('bash {}/clear_all.sh' \
+                .format(settings.VM_SCRIPT_DIR), shell=True)
 
     def add_instances(self, image_id, count, user_data, security_group_names,
                       **kwargs):
