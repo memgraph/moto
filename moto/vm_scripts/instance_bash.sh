@@ -12,7 +12,7 @@ fi
 
 vboxmanage guestcontrol $1 run \
     --exe "/bin/bash" \
-    --username ec2-user \
+    --username admin \
     --password password \
-    -E PATH=/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/home/ec2-user/.local/bin:/home/ec2-user/bin \
+     -E PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin \
     -- bash/arg0 -c "$2"

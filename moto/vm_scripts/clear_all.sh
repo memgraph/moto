@@ -7,10 +7,9 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 for instance in $(vboxmanage list vms); do
     name=$(echo $instance | sed -E 's/"(.+)".*/\1/')
 
-    if [ $name == 'base' ]; then
-        continue
+    if [[ $name == instance_* ]]; then
+        $($DIR/stop_instance.sh $name)
+        $($DIR/delete_instance.sh $name)
     fi
 
-    $($DIR/stop_instance.sh $name)
-    $($DIR/delete_instance.sh $name)
 done)
