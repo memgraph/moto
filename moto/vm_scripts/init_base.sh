@@ -29,4 +29,4 @@ vboxmanage modifyvm base --memory 512 --vram 16
 vboxmanage modifyvm base --graphicscontroller vmsvga
 vboxmanage modifyvm base --hostonlyadapter1 $net --nic1 hostonly
 vboxmanage storagectl base --name "SATA" --add sata --portcount 1
-vboxmanage storageattach base --storagectl "SATA" --port 0 --device 0 --type hdd --medium $1
+vboxmanage storageattach base --storagectl "SATA" --port 0 --device 0 --type hdd --medium base.vdi
